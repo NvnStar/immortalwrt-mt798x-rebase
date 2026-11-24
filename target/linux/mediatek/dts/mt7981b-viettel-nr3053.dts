@@ -90,6 +90,10 @@
 };
 
 &mdio_bus {
+	ethernet-phy@0 {
+		status = "disabled";
+	};
+
 	switch: switch@1f {
 		compatible = "mediatek,mt7531";
 		reg = <0x1f>;
