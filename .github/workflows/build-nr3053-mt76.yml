@@ -11,6 +11,10 @@ on:
       - "package/**"
       - "target/**"
       - "include/**"
+      - "scripts/**"
+      - "config/**"
+      - "tools/**"
+      - "toolchain/**"
       - "feeds.conf.default"
       - "Makefile"
       - "rules.mk"
@@ -32,7 +36,16 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Restore branch tracking and verify pre-build transparency
+        run: |
+          if git show-ref --verify --quiet "refs/remotes/origin/${GITHUB_REF_NAME}"; then
+            git checkout -B "${GITHUB_REF_NAME}" --track "origin/${GITHUB_REF_NAME}"
+          fi
+          ./scripts/verify-nr3053-transparency.sh --pre-build
 
       - name: Maximize build disk space
         run: |
@@ -51,17 +64,15 @@ jobs:
 
       - name: Restore toolchain cache
         id: cache-toolchain
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             staging_dir/host
             staging_dir/toolchain-aarch64_cortex-a53_gcc-*
-          key: ${{ env.CACHE_PREFIX }}-toolchain-${{ hashFiles('feeds.conf.default', 'toolchain/**', 'tools/**') }}
-          restore-keys: |
-            ${{ env.CACHE_PREFIX }}-toolchain-
+          key: ${{ env.CACHE_PREFIX }}-toolchain-${{ hashFiles('toolchain/**', 'tools/**', 'Config.in', 'rules.mk') }}
 
       - name: Restore download cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: dl
           key: ${{ env.CACHE_PREFIX }}-dl-${{ github.run_id }}
@@ -69,7 +80,7 @@ jobs:
             ${{ env.CACHE_PREFIX }}-dl-
 
       - name: Restore ccache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: .ccache
           key: ${{ env.CACHE_PREFIX }}-ccache-${{ github.run_id }}
@@ -94,8 +105,16 @@ jobs:
           CONFIG_PACKAGE_luci-ssl=y
           CONFIG_PACKAGE_irqbalance=y
           CONFIG_PACKAGE_kmod-tcp-bbr=y
+          # Disable both default-settings and default-settings-chn (avoids dnsmasq log silencing, mirrors.vsean.net & Asia/Shanghai)
+          # CONFIG_PACKAGE_default-settings is not set
+          # CONFIG_PACKAGE_default-settings-chn is not set
+          # CONFIG_LUCI_LANG_zh_Hans is not set
+          # CONFIG_PACKAGE_luci-i18n-base-zh-cn is not set
+          # CONFIG_PACKAGE_luci-i18n-firewall-zh-cn is not set
+          # CONFIG_PACKAGE_luci-i18n-package-manager-zh-cn is not set
           EOF
           make defconfig
+          ./scripts/verify-nr3053-transparency.sh --check-config .config
           # Fail fast if the device or required packages dropped out of the config
           grep -q '^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_viettel_nr3053=y' .config
           grep -q '^CONFIG_CCACHE=y' .config
@@ -104,6 +123,10 @@ jobs:
           grep -qE '^CONFIG_PACKAGE_mt7981-wo-firmware=(y|m)' .config
           grep -q '^CONFIG_PACKAGE_irqbalance=y' .config
           grep -q '^CONFIG_PACKAGE_kmod-tcp-bbr=y' .config
+          # Fail fast if default-settings or CHN overrides sneaked back in
+          ! grep -q '^CONFIG_PACKAGE_default-settings=' .config
+          ! grep -q '^CONFIG_PACKAGE_default-settings-chn=' .config
+          ! grep -q '^CONFIG_LUCI_LANG_zh_Hans=y' .config
 
       - name: Install first-boot defaults
         run: |
@@ -140,16 +163,17 @@ jobs:
           mkdir -p dist
           cp bin/targets/mediatek/filogic/*viettel_nr3053*initramfs-recovery.itb dist/
           cp bin/targets/mediatek/filogic/*viettel_nr3053*squashfs-sysupgrade.itb dist/
-          cp bin/targets/mediatek/filogic/*viettel_nr3053*.manifest dist/ 2>/dev/null || true
+          cp bin/targets/mediatek/filogic/*.manifest dist/
           if [ -d bin/targets/mediatek/filogic/packages ]; then
             tar -czf dist/kmods-packages.tar.gz -C bin/targets/mediatek/filogic packages
           fi
           cp .config dist/config.buildinfo
           (cd dist && sha256sum * > sha256sums)
+          ./scripts/verify-nr3053-transparency.sh --post-build dist
           ls -la dist
 
       - name: Upload firmware artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: immortalwrt-nr3053-mt76-${{ github.sha }}
           path: dist/
@@ -157,29 +181,29 @@ jobs:
           retention-days: 14
 
       - name: Free disk before cache save
-        if: always()
+        if: success()
         run: |
           rm -rf build_dir bin tmp logs feeds staging_dir/target-* staging_dir/packages
           df -h /
 
       - name: Save toolchain cache
-        if: always() && steps.cache-toolchain.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
+        if: success() && steps.cache-toolchain.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             staging_dir/host
             staging_dir/toolchain-aarch64_cortex-a53_gcc-*
-          key: ${{ env.CACHE_PREFIX }}-toolchain-${{ hashFiles('feeds.conf.default', 'toolchain/**', 'tools/**') }}
+          key: ${{ env.CACHE_PREFIX }}-toolchain-${{ hashFiles('toolchain/**', 'tools/**', 'Config.in', 'rules.mk') }}
 
       - name: Save download cache
-        if: always()
-        uses: actions/cache/save@v5
+        if: success()
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: dl
           key: ${{ env.CACHE_PREFIX }}-dl-${{ github.run_id }}
 
       - name: Prune ccache
-        if: always()
+        if: success()
         run: |
           mkdir -p .ccache
           if [ -x staging_dir/host/bin/ccache ]; then
@@ -188,8 +212,32 @@ jobs:
           fi
 
       - name: Upload ccache
-        if: always()
-        uses: actions/cache/save@v5
+        if: success()
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: .ccache
           key: ${{ env.CACHE_PREFIX }}-ccache-${{ github.run_id }}
+
+  build-bootloader:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install bootloader build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential flex bison libssl-dev device-tree-compiler \
+            gcc-aarch64-linux-gnu nodejs npm python3 git ca-certificates
+
+      - name: Build NR3053 open-source bootloader (SP2)
+        run: ./scripts/build-nr3053-bootloader.sh tmp/dist-bootloader
+
+      - name: Upload bootloader artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: immortalwrt-nr3053-bootloader-sp2-${{ github.sha }}
+          path: tmp/dist-bootloader/
+          if-no-files-found: error
+          retention-days: 14

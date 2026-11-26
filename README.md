@@ -1,3 +1,15 @@
+> **Viettel NR3053 (`nr3053-mt76` branch)**
+>
+> This branch adds **Viettel (SDMC) NR3053** board support directly on top of official `immortalwrt/openwrt-25.12` using the open-source **`mt76`** Wi-Fi driver (no proprietary `package/mtk/` SDK stack).
+>
+> - **Source transparency, provenance, binary blob audit & brick-safety matrix**: see **[docs/TRANSPARENCY.md](docs/TRANSPARENCY.md)**.
+> - **Automated verification gates**: [scripts/verify-nr3053-transparency.sh](scripts/verify-nr3053-transparency.sh) (`--pre-build`, `--check-config`, `--post-build`).
+> - **Isolated open-source U-Boot/TF-A (`SP2`) build**: [scripts/build-nr3053-bootloader.sh](scripts/build-nr3053-bootloader.sh) (SHA-pinned `quytttb/bl-mt798x-dhcpd`, packaged separately from firmware `.itb` artifacts).
+> - **CI build definition**: [.github/workflows/build-nr3053-mt76.yml](.github/workflows/build-nr3053-mt76.yml) (pinned feeds, SHA-pinned GitHub Actions, both `default-settings` and `default-settings-chn` disabled so `apk` stays on official `downloads.immortalwrt.org` and `dnsmasq` logging is not silenced).
+> - **Note on branches**: The `main` branch in this repository is a separate MediaTek proprietary SDK (`mt_wifi`) fork; use `nr3053-mt76` for the minimal, open-source `mt76` build.
+
+---
+
 <img src="https://avatars.githubusercontent.com/u/53193414?s=200&v=4" alt="logo" width="200" height="200" align="right">
 
 # Project ImmortalWrt
