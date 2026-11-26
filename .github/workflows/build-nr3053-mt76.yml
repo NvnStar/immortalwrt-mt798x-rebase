@@ -68,6 +68,14 @@ jobs:
           restore-keys: |
             ${{ env.CACHE_PREFIX }}-dl-
 
+      - name: Restore ccache
+        uses: actions/cache/restore@v5
+        with:
+          path: .ccache
+          key: ${{ env.CACHE_PREFIX }}-ccache-${{ github.run_id }}
+          restore-keys: |
+            ${{ env.CACHE_PREFIX }}-ccache-
+
       - name: Update and install feeds
         run: |
           ./scripts/feeds update -a
@@ -81,14 +89,43 @@ jobs:
           CONFIG_TARGET_MULTI_PROFILE=y
           CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_viettel_nr3053=y
           CONFIG_TARGET_ROOTFS_INITRAMFS=y
+          CONFIG_DEVEL=y
+          CONFIG_CCACHE=y
           CONFIG_PACKAGE_luci-ssl=y
+          CONFIG_PACKAGE_irqbalance=y
+          CONFIG_PACKAGE_kmod-tcp-bbr=y
           EOF
           make defconfig
-          # Fail fast if the device or the mt76 driver dropped out of the config
+          # Fail fast if the device or required packages dropped out of the config
           grep -q '^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_viettel_nr3053=y' .config
+          grep -q '^CONFIG_CCACHE=y' .config
           grep -qE '^CONFIG_PACKAGE_kmod-mt7915e=(y|m)' .config
           grep -qE '^CONFIG_PACKAGE_kmod-mt7981-firmware=(y|m)' .config
           grep -qE '^CONFIG_PACKAGE_mt7981-wo-firmware=(y|m)' .config
+          grep -q '^CONFIG_PACKAGE_irqbalance=y' .config
+          grep -q '^CONFIG_PACKAGE_kmod-tcp-bbr=y' .config
+
+      - name: Install first-boot defaults
+        run: |
+          mkdir -p files/etc/uci-defaults
+          cat > files/etc/uci-defaults/99-nr3053-defaults <<'EOF'
+          #!/bin/sh
+          # Enable irqbalance on dual-core MT7981B (ships disabled by default)
+          uci -q set irqbalance.@irqbalance[0].enabled='1'
+          uci -q commit irqbalance
+
+          # Prefer IP-literal NTP servers first so time syncs before DNS/DNSSEC
+          uci -q delete system.ntp.server
+          uci add_list system.ntp.server='162.159.200.1'
+          uci add_list system.ntp.server='216.239.35.0'
+          uci add_list system.ntp.server='time.cloudflare.com'
+          uci add_list system.ntp.server='time1.google.com'
+          uci add_list system.ntp.server='0.openwrt.pool.ntp.org'
+          uci commit system
+
+          exit 0
+          EOF
+          chmod +x files/etc/uci-defaults/99-nr3053-defaults
 
       - name: Download sources
         run: make download -j8
@@ -104,6 +141,9 @@ jobs:
           cp bin/targets/mediatek/filogic/*viettel_nr3053*initramfs-recovery.itb dist/
           cp bin/targets/mediatek/filogic/*viettel_nr3053*squashfs-sysupgrade.itb dist/
           cp bin/targets/mediatek/filogic/*viettel_nr3053*.manifest dist/ 2>/dev/null || true
+          if [ -d bin/targets/mediatek/filogic/packages ]; then
+            tar -czf dist/kmods-packages.tar.gz -C bin/targets/mediatek/filogic packages
+          fi
           cp .config dist/config.buildinfo
           (cd dist && sha256sum * > sha256sums)
           ls -la dist
@@ -137,3 +177,19 @@ jobs:
         with:
           path: dl
           key: ${{ env.CACHE_PREFIX }}-dl-${{ github.run_id }}
+
+      - name: Prune ccache
+        if: always()
+        run: |
+          mkdir -p .ccache
+          if [ -x staging_dir/host/bin/ccache ]; then
+            CCACHE_DIR="$PWD/.ccache" staging_dir/host/bin/ccache -M 2G -c
+            CCACHE_DIR="$PWD/.ccache" staging_dir/host/bin/ccache -s
+          fi
+
+      - name: Upload ccache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: .ccache
+          key: ${{ env.CACHE_PREFIX }}-ccache-${{ github.run_id }}
