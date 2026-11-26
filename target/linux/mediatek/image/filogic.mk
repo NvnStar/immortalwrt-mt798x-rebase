@@ -3583,7 +3583,7 @@ define Device/viettel_nr3053
   DEVICE_DTS := mt7981b-viettel-nr3053
   DEVICE_DTS_DIR := ../dts
   DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware
-  SUPPORTED_DEVICES := viettel,nr3053
+  SUPPORTED_DEVICES := viettel,nr3053 sdmc,nr3053
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048

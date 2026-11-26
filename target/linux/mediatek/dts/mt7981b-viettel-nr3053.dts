@@ -18,7 +18,7 @@
 		led-boot = &status_red;
 		led-failsafe = &status_red;
 		led-running = &status_green;
-		led-upgrade = &status_green;
+		led-upgrade = &status_red;
 	};
 
 	chosen {
@@ -64,6 +64,7 @@
 			color = <LED_COLOR_ID_RED>;
 			function = LED_FUNCTION_STATUS;
 			gpios = <&pio 6 GPIO_ACTIVE_LOW>;
+			default-state = "on";
 		};
 	};
 };
