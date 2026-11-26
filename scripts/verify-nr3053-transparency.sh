@@ -99,6 +99,7 @@ required_patterns = [
     (r"^CONFIG_PACKAGE_kmod-mt7915e=(y|m)$", "CONFIG_PACKAGE_kmod-mt7915e=y|m"),
     (r"^CONFIG_PACKAGE_kmod-mt7981-firmware=(y|m)$", "CONFIG_PACKAGE_kmod-mt7981-firmware=y|m"),
     (r"^CONFIG_PACKAGE_mt7981-wo-firmware=(y|m)$", "CONFIG_PACKAGE_mt7981-wo-firmware=y|m"),
+    (r"^CONFIG_PACKAGE_wpad-openssl=(y|m)$", "CONFIG_PACKAGE_wpad-openssl=y|m"),
 ]
 
 forbidden_patterns = [
@@ -107,6 +108,7 @@ forbidden_patterns = [
     (r"^CONFIG_LUCI_LANG_zh_Hans=y$", "CONFIG_LUCI_LANG_zh_Hans=y"),
     (r"^CONFIG_PACKAGE_mt_wifi=", "CONFIG_PACKAGE_mt_wifi="),
     (r"^CONFIG_PACKAGE_kmod-mt_wifi=", "CONFIG_PACKAGE_kmod-mt_wifi="),
+    (r"^CONFIG_PACKAGE_wpad-(basic|mini)(-.*)?=y$", "CONFIG_PACKAGE_wpad-basic/mini=y"),
 ]
 
 errors = []
@@ -155,6 +157,7 @@ allowlist = {
     "scripts/verify-nr3053-transparency.sh",
     "scripts/build-nr3053-bootloader.sh",
     "docs/TRANSPARENCY.md",
+    "docs/TUNING.md",
     "README.md",
 }
 
@@ -551,7 +554,7 @@ for mf in manifest_files:
     if len(lines) < 50:
         raise SystemExit(f"FAIL: Manifest {mf} has too few entries ({len(lines)} < 50)")
     pkg_names = {line.split()[0] for line in lines if line.strip()}
-    for req in ("fitblk", "kmod-mt7915e", "mt7981-wo-firmware"):
+    for req in ("fitblk", "kmod-mt7915e", "mt7981-wo-firmware", "wpad-openssl"):
         if req not in pkg_names:
             raise SystemExit(f"FAIL: Manifest {mf} missing required package '{req}'")
     for bad in ("default-settings", "default-settings-chn"):

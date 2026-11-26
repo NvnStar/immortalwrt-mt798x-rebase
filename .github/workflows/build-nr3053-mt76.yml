@@ -105,6 +105,7 @@ jobs:
           CONFIG_PACKAGE_luci-ssl=y
           CONFIG_PACKAGE_irqbalance=y
           CONFIG_PACKAGE_kmod-tcp-bbr=y
+          CONFIG_PACKAGE_luci-app-sqm=y
           # Disable both default-settings and default-settings-chn (avoids dnsmasq log silencing, mirrors.vsean.net & Asia/Shanghai)
           # CONFIG_PACKAGE_default-settings is not set
           # CONFIG_PACKAGE_default-settings-chn is not set
@@ -123,6 +124,11 @@ jobs:
           grep -qE '^CONFIG_PACKAGE_mt7981-wo-firmware=(y|m)' .config
           grep -q '^CONFIG_PACKAGE_irqbalance=y' .config
           grep -q '^CONFIG_PACKAGE_kmod-tcp-bbr=y' .config
+          grep -q '^CONFIG_PACKAGE_wpad-openssl=y' .config
+          grep -q '^CONFIG_PACKAGE_luci-app-sqm=y' .config
+          grep -q '^CONFIG_PACKAGE_sqm-scripts=y' .config
+          grep -qE '^CONFIG_PACKAGE_kmod-sched-cake=(y|m)' .config
+          grep -qE '^CONFIG_PACKAGE_kmod-ifb=(y|m)' .config
           # Fail fast if default-settings or CHN overrides sneaked back in
           ! grep -q '^CONFIG_PACKAGE_default-settings=' .config
           ! grep -q '^CONFIG_PACKAGE_default-settings-chn=' .config
@@ -145,6 +151,24 @@ jobs:
           uci add_list system.ntp.server='time1.google.com'
           uci add_list system.ntp.server='0.openwrt.pool.ntp.org'
           uci commit system
+
+          # Migrate untouched stock sqm-scripts eth1 template to NR3053 DSA wan (disabled by default)
+          if [ -f /etc/config/sqm ] && \
+             ! uci -q get sqm.wan >/dev/null 2>&1 && \
+             [ "$(uci -q get sqm.eth1)" = "queue" ] && \
+             [ "$(uci -q get sqm.eth1.enabled)" = "0" ] && \
+             [ "$(uci -q get sqm.eth1.interface)" = "eth1" ]; then
+            uci -q rename sqm.eth1='wan'
+            uci -q set sqm.wan.enabled='0'
+            uci -q set sqm.wan.interface='wan'
+            uci -q set sqm.wan.download='250000'
+            uci -q set sqm.wan.upload='250000'
+            uci -q set sqm.wan.qdisc='cake'
+            uci -q set sqm.wan.script='piece_of_cake.qos'
+            uci -q set sqm.wan.linklayer='ethernet'
+            uci -q set sqm.wan.overhead='44'
+            uci -q commit sqm
+          fi
 
           exit 0
           EOF
@@ -170,6 +194,9 @@ jobs:
           cp .config dist/config.buildinfo
           (cd dist && sha256sum * > sha256sums)
           ./scripts/verify-nr3053-transparency.sh --post-build dist
+          for pkg in irqbalance kmod-tcp-bbr luci-app-sqm sqm-scripts kmod-sched-cake kmod-ifb; do
+            grep -qE "^${pkg} " dist/*.manifest
+          done
           ls -la dist
 
       - name: Upload firmware artifacts

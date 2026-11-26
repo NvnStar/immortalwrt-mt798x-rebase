@@ -23,7 +23,7 @@ Every change on top of official `immortalwrt/openwrt-25.12` (`b1088b5661`) lives
 | `.github/workflows/build-nr3053-mt76.yml` | Transparent, SHA-pinned GitHub Actions firmware & isolated bootloader CI |
 | `scripts/verify-nr3053-transparency.sh` | Automated pre-build, config, and post-build transparency & brick-safety gate |
 | `scripts/build-nr3053-bootloader.sh` | Reproducible, SHA-pinned open-source U-Boot/TF-A (`SP2`) builder |
-| `docs/TRANSPARENCY.md`, `README.md` | Documentation only (does not affect built images) |
+| `docs/TRANSPARENCY.md`, `docs/TUNING.md`, `README.md` | Documentation only (does not affect built images) |
 
 ### 1.1 Inherited ImmortalWrt Delta vs. Official `openwrt/openwrt` (`c8a7c4c065..b1088b5661`)
 
@@ -133,6 +133,7 @@ Once flashed onto the NR3053, these are the external endpoints and trust anchors
   - `162.159.200.1` (Cloudflare IP literal — allows clock sync before DNS/DNSSEC)
   - `216.239.35.0` (Google IP literal)
   - `time.cloudflare.com`, `time1.google.com`, `0.openwrt.pool.ntp.org`
+- **SQM template migration** (first boot via `files/etc/uci-defaults/99-nr3053-defaults` in CI): when `/etc/config/sqm` is in its untouched stock `eth1` state (`enabled='0'`, `interface='eth1'`, and no `sqm.wan` section), it renames `sqm.eth1` to `sqm.wan` (`interface='wan'`, `qdisc='cake'`, `script='piece_of_cake.qos'`, `linklayer='ethernet'`, `overhead='44'`, `enabled='0'`). It makes zero external network requests and leaves user-customized SQM configurations untouched across `sysupgrade`.
 
 ---
 
@@ -171,6 +172,7 @@ CONFIG_TARGET_ROOTFS_INITRAMFS=y
 CONFIG_PACKAGE_luci-ssl=y
 CONFIG_PACKAGE_irqbalance=y
 CONFIG_PACKAGE_kmod-tcp-bbr=y
+CONFIG_PACKAGE_luci-app-sqm=y
 # CONFIG_PACKAGE_default-settings is not set
 # CONFIG_PACKAGE_default-settings-chn is not set
 # CONFIG_LUCI_LANG_zh_Hans is not set
